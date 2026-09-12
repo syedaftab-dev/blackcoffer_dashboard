@@ -1,26 +1,209 @@
 @import "tailwindcss";
 
+/* ──────────────────────────────────────
+   Dark Mode (default)
+   ────────────────────────────────────── */
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --bg-page: #0a0a0a;
+  --bg-sidebar: #101010;
+  --bg-card: #141414;
+  --bg-card-hover: #1a1a1a;
+  --bg-input: #141414;
+  --bg-tooltip: #141414;
+  --bg-nodata: #1a1a2e;
+
+  --border-subtle: rgba(255, 255, 255, 0.06);
+  --border-active: rgba(230, 159, 0, 0.35);
+
+  --text-primary: #e8e8e8;
+  --text-secondary: #7a7a7a;
+  --text-muted: #5a5a5a;
+
+  /* Accent: Intensity (#e69f00) & Likelihood (#0072b2) */
+  --accent-sage: #e69f00;
+  --accent-sage-dim: rgba(230, 159, 0, 0.12);
+  --accent-sage-border: rgba(230, 159, 0, 0.25);
+  --accent-rose: #0072b2;
+  --accent-rose-dim: rgba(0, 114, 178, 0.12);
+  --accent-rose-border: rgba(0, 114, 178, 0.25);
+
+  /* Okabe-Ito Categorical Colors */
+  --chart-orange: #e69f00;
+  --chart-blue: #0072b2;
+  --chart-skyblue: #56b4e9;
+  --chart-teal: #009e73;
+  --chart-yellow: #f0e442;
+  --chart-vermillion: #d55e00;
+  --chart-pink: #cc79a7;
+  --chart-other: #8a8a8a;
+
+  /* Status / trend */
+  --status-success: #009e73;
+  --status-danger: #d55e00;
+
+  /* Scrollbar */
+  --scrollbar-thumb: rgba(255, 255, 255, 0.10);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.18);
+
+  /* Shadow intensity */
+  --shadow-card: 0 4px 20px -2px rgba(0, 0, 0, 0.7);
+  --shadow-tooltip: 0 12px 30px rgba(0, 0, 0, 0.8);
+
+  /* Selection */
+  --selection-bg: rgba(230, 159, 0, 0.25);
+  --selection-text: #ffffff;
+
+  /* Grid lines */
+  --grid-stroke: rgba(255, 255, 255, 0.05);
+
+  /* Heatmap stroke */
+  --heatmap-stroke: #0a0a0a;
+
+  /* Skeleton */
+  --skeleton-base: rgba(255, 255, 255, 0.04);
+  --skeleton-shine: rgba(255, 255, 255, 0.07);
+  --skeleton-bright: rgba(255, 255, 255, 0.10);
+
+  /* Loader */
+  --loader-border: #e69f00;
+
+  color-scheme: dark;
+}
+
+/* ──────────────────────────────────────
+   Light Mode
+   ────────────────────────────────────── */
+[data-theme="light"] {
+  --bg-page: #f7f5f2;
+  --bg-sidebar: #efecea;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f5f3f0;
+  --bg-input: #f0ede9;
+  --bg-tooltip: #ffffff;
+  --bg-nodata: #e8e4de;
+
+  --border-subtle: rgba(0, 0, 0, 0.08);
+  --border-active: rgba(95, 125, 92, 0.4);
+
+  --text-primary: #2b2620;
+  --text-secondary: #8a8078;
+  --text-muted: #b0a89e;
+
+  /* Accent: Sage + Rose (darkened for light-bg readability) */
+  --accent-sage: #5f7d5c;
+  --accent-sage-dim: rgba(95, 125, 92, 0.12);
+  --accent-sage-border: rgba(95, 125, 92, 0.25);
+  --accent-rose: #b56f5c;
+  --accent-rose-dim: rgba(181, 111, 92, 0.12);
+  --accent-rose-border: rgba(181, 111, 92, 0.25);
+
+  /* Multi-color set for donut and visualizations */
+  --chart-purple: #6b5fa8;
+  --chart-blue: #4a7fac;
+  --chart-orange: #c4884d;
+  --chart-pink: #a86b82;
+  --chart-teal: #508f7e;
+  --chart-amber: #a88930;
+
+  /* Status / trend */
+  --status-success: #5f7d5c;
+  --status-danger: #b56f5c;
+
+  /* Scrollbar */
+  --scrollbar-thumb: rgba(0, 0, 0, 0.12);
+  --scrollbar-thumb-hover: rgba(0, 0, 0, 0.22);
+
+  /* Shadow intensity */
+  --shadow-card: 0 4px 16px -4px rgba(0, 0, 0, 0.08), 0 2px 6px -2px rgba(0, 0, 0, 0.05);
+  --shadow-tooltip: 0 8px 24px rgba(0, 0, 0, 0.12);
+
+  /* Selection */
+  --selection-bg: rgba(95, 125, 92, 0.25);
+  --selection-text: #3d5a3a;
+
+  /* Grid lines */
+  --grid-stroke: rgba(0, 0, 0, 0.06);
+
+  /* Heatmap stroke */
+  --heatmap-stroke: #f7f5f2;
+
+  /* Skeleton */
+  --skeleton-base: rgba(0, 0, 0, 0.04);
+  --skeleton-shine: rgba(0, 0, 0, 0.07);
+  --skeleton-bright: rgba(0, 0, 0, 0.10);
+
+  /* Loader */
+  --loader-border: #5f7d5c;
+
+  color-scheme: light;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-background: var(--bg-page);
+  --color-foreground: var(--text-primary);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+::selection {
+  background: var(--selection-bg);
+  color: var(--selection-text);
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--bg-page);
+  color: var(--text-primary);
+  font-family: var(--font-sans, system-ui, -apple-system, sans-serif);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Pillowy card styles */
+.pill-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: 18px;
+  box-shadow: var(--shadow-card);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease, background-color 0.3s ease;
+}
+
+.pill-card:hover {
+  border-color: var(--border-active);
+}
+
+/* Tooltip floating pill */
+.tooltip-pill {
+  background: var(--bg-tooltip);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  box-shadow: var(--shadow-tooltip);
+  backdrop-filter: blur(12px);
+}
+
+/* Custom scrollbar for dropdowns and tables */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+}
+
+/* Theme toggle animation */
+.theme-toggle-icon {
+  transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease;
 }

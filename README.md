@@ -2,7 +2,7 @@
 
 A modern, full-stack MERN data visualization platform engineered to analyze and uncover strategic business insights from unstructured and multi-dimensional intelligence data.
 
-Built with **Next.js 14+ (App Router)**, **TypeScript**, **MongoDB / Mongoose**, **Redis Caching**, **Custom D3.js Heatmap**, **Recharts Visualizations**, **Zustand State Management**, and **Tailwind CSS**.
+Built with **Next.js (App Router)**, **TypeScript**, **MongoDB / Mongoose**, **Native Next.js Data Caching**, **Custom D3.js Heatmap**, **Recharts Visualizations**, **Zustand State Management**, and **Tailwind CSS**.
 
 ---
 
@@ -24,8 +24,11 @@ Built with **Next.js 14+ (App Router)**, **TypeScript**, **MongoDB / Mongoose**,
 - **Executive Insight Callouts**: Real-time calculated KPI cards displaying Peak Intensity Year, Dominant Sector, Top Topic, and Highest Likelihood Country.
 - **High-Performance Aggregations & Caching**:
   - MongoDB multi-pipeline parallel aggregations.
-  - Redis cache layer (`ioredis`) with 10-minute TTL and graceful offline fallback.
-- **Dark Editorial Aesthetic**: Bespoke dark theme with glassmorphism card surfaces, glowing accents, and responsive layout across desktop and mobile.
+  - Next.js native Data Cache (`unstable_cache`) with 5–10 minute TTL and Edge `Cache-Control` response headers. Zero external caching daemon required.
+- **Dark & Light Editorial Aesthetic**:
+  - Dark Theme: Neutral charcoal `#0a0a0a` / `#141414` palette with 8-color Okabe-Ito colorblind-safe categorical palette and custom D3 sequential ramp.
+  - Light Theme: Warm off-white `#f7f5f2` / `#ffffff` with darkened tones for optimal contrast.
+  - Zero-FOUC persistence via `localStorage`.
 
 ---
 
@@ -33,8 +36,8 @@ Built with **Next.js 14+ (App Router)**, **TypeScript**, **MongoDB / Mongoose**,
 
 | Visualization | Technology | Dimensions Analyzed | Cross-Filter Interaction |
 |---|---|---|---|
-| **Intensity Trend** | Recharts (Area/Line) | Year vs. Average Intensity | Click point to filter by Year |
-| **Sector Breakdown** | Recharts (Donut) | Sector Count & Proportions | Click slice to filter by Sector |
+| **Intensity Trend** | Recharts (Area/Line) | Year vs. Average Intensity & Likelihood | Click point to filter by Year |
+| **Sector Breakdown** | Recharts (Donut) | Top 7 Sectors + "Other" | Click slice to filter by Sector |
 | **Region × Year Intensity Heatmap** | **Custom D3.js** | Region vs. Year vs. Avg Intensity | Click cell to filter by Region & Year |
 | **Topic Distribution** | Recharts (Horizontal Bar) | Top Topics by Frequency | Click bar to filter by Topic |
 | **Country Likelihood** | Recharts (Horizontal Bar) | Country vs. Average Likelihood | Click bar to filter by Country |
@@ -45,21 +48,21 @@ Built with **Next.js 14+ (App Router)**, **TypeScript**, **MongoDB / Mongoose**,
 
 ```mermaid
 graph TD
-    Client[Next.js 14 Client App / React 19] -->|Read / Write State| Store[Zustand Filter Store]
+    Client[Next.js Client App / React 19] -->|Read / Write State| Store[Zustand Filter Store]
     Store <-->|Bidirectional Sync| URL[URL Search Params]
     Client -->|GET /api/insights/aggregate| API[Next.js Route Handlers]
     Client -->|GET /api/insights/filters| API
     Client -->|GET /api/insights| API
-    API <-->|10m TTL Cache| Redis[(Redis Cache)]
+    API <-->|Built-in Data Cache| NextCache[(Next.js Cache)]
     API <-->|Aggregations & Queries| Mongo[(MongoDB Atlas)]
 ```
 
-- **Frontend**: Next.js 14+ (App Router), React 19, TypeScript, Tailwind CSS
+- **Frontend**: Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS
 - **Charts**: D3.js (v7) for custom Region × Year heatmap, Recharts (v3) for line, bar, and donut charts
 - **State Management**: Zustand with custom URL search param synchronization
 - **Validation**: Zod schemas for query parameters and responses
 - **Database**: MongoDB Atlas with Mongoose ODM (singleton connection pooling)
-- **Cache**: Redis via `ioredis` with automatic graceful fallback when disconnected
+- **Cache**: Next.js Data Cache (`unstable_cache`) + Edge `Cache-Control`
 
 ---
 
@@ -68,7 +71,7 @@ graph TD
 ### 1. Clone & Install Dependencies
 
 ```bash
-git clone <repository-url>
+git clone https://github.com/syedaftab-dev/blackcoffer_dashboard.git
 cd blackcofee
 npm install
 ```
@@ -86,9 +89,6 @@ Edit `.env.local` and configure your credentials:
 ```env
 # Required: MongoDB Connection String (MongoDB Atlas or local instance)
 MONGODB_URI=mongodb+srv://<username>:<password>@<cluster>.mongodb.net/blackcoffer?retryWrites=true&w=majority
-
-# Optional: Redis Connection URL (caching layer with graceful fallback)
-REDIS_URL=redis://localhost:6379
 ```
 
 ### 3. Seed the Database
@@ -139,10 +139,31 @@ Runs 5 parallel aggregation pipelines respecting current filters.
 
 ---
 
+---
+
 ## 🧪 Verification & Production Build
 
-To test and build the production bundle:
+To test and build the production bundle locally:
 
 ```bash
+npm run lint
 npm run build
 ```
+
+---
+
+## 🌐 Deploy to Vercel
+
+The application is fully optimized for zero-config serverless deployment on Vercel:
+
+1. Push code to your GitHub repository:
+   ```bash
+   git add .
+   git commit -m "feat: complete blackcoffer foresight dashboard"
+   git push origin main
+   ```
+2. Navigate to [Vercel](https://vercel.com/new) and import the repository `syedaftab-dev/blackcoffer_dashboard`.
+3. Under **Environment Variables**, add:
+   * **`MONGODB_URI`**: `mongodb+srv://...` (your MongoDB Atlas connection URI)
+4. Click **Deploy**. Vercel will build and launch your production deployment with global Edge caching and MongoDB connection pooling.
+
