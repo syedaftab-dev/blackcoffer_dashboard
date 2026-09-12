@@ -1,12 +1,11 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useFilterStore } from "@/store/filterStore";
 import { FILTER_FIELDS, type FilterField } from "@/lib/schemas/insight";
 
 export function useUrlSync() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const { filters, setFilter, search, setSearch } = useFilterStore();
   const isInitialized = useRef(false);
@@ -52,6 +51,8 @@ export function useUrlSync() {
     }
 
     const newUrl = hasFilters ? `?${params.toString()}` : "/";
-    router.replace(newUrl, { scroll: false });
-  }, [filters, search, router]);
+    if (typeof window !== "undefined") {
+      window.history.replaceState(null, "", newUrl);
+    }
+  }, [filters, search]);
 }

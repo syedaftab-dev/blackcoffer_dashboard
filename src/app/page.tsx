@@ -23,6 +23,7 @@ function DashboardContent() {
     insightsList,
     totalFilteredCount,
     isLoading,
+    isInitialLoading,
     error,
     retry,
   } = useInsightsData();
@@ -49,12 +50,22 @@ function DashboardContent() {
       }}
     >
       {/* Left Sidebar (fixed width ~230px) */}
-      <Sidebar filtersData={filtersData} isLoading={isLoading} />
+      <Sidebar filtersData={filtersData} isLoading={!filtersData} />
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Bar with real working search and refresh */}
         <TopBar isLoading={isLoading} onRefresh={retry} />
+
+        {/* Subtle non-blocking progress bar during filter changes */}
+        {isLoading && !isInitialLoading && (
+          <div className="h-0.5 w-full bg-transparent overflow-hidden">
+            <div
+              className="h-full w-full animate-pulse"
+              style={{ background: "var(--accent-sage)" }}
+            />
+          </div>
+        )}
 
         {/* Dashboard Content Container */}
         <main className="flex-1 p-6 lg:p-8 space-y-6 max-w-[1600px] w-full mx-auto">
@@ -148,7 +159,7 @@ function DashboardContent() {
               <KpiCards
                 aggregateData={aggregateData}
                 totalFilteredCount={totalFilteredCount}
-                isLoading={isLoading}
+                isLoading={isInitialLoading}
               />
             </div>
 
@@ -156,7 +167,7 @@ function DashboardContent() {
             <div className="lg:col-span-7 h-full">
               <IntensityTrendChart
                 data={aggregateData?.intensityByYear}
-                isLoading={isLoading}
+                isLoading={isInitialLoading}
                 error={error}
                 onRetry={retry}
                 onYearClick={(year) => toggleFilterValue("end_year", String(year))}
@@ -170,7 +181,7 @@ function DashboardContent() {
             <div className="lg:col-span-7 h-full">
               <TopicDistributionChart
                 data={aggregateData?.topicCounts}
-                isLoading={isLoading}
+                isLoading={isInitialLoading}
                 error={error}
                 onRetry={retry}
                 onTopicClick={(topic) => toggleFilterValue("topic", topic)}
@@ -181,7 +192,7 @@ function DashboardContent() {
             <div className="lg:col-span-5 h-full">
               <SectorBreakdownChart
                 data={aggregateData?.sectorCounts}
-                isLoading={isLoading}
+                isLoading={isInitialLoading}
                 error={error}
                 onRetry={retry}
                 onSectorClick={(sector) => toggleFilterValue("sector", sector)}
@@ -204,7 +215,7 @@ function DashboardContent() {
             <div className="lg:col-span-5 h-full">
               <CountryLikelihoodChart
                 data={aggregateData?.countryLikelihood}
-                isLoading={isLoading}
+                isLoading={isInitialLoading}
                 error={error}
                 onRetry={retry}
                 onCountryClick={(country) => toggleFilterValue("country", country)}
@@ -216,7 +227,7 @@ function DashboardContent() {
           <div className="w-full">
             <RegionYearHeatmap
               data={aggregateData?.regionYearIntensity}
-              isLoading={isLoading}
+              isLoading={isInitialLoading}
               error={error}
               onRetry={retry}
               onCellClick={(region, year) => {
