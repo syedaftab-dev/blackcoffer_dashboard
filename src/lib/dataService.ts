@@ -4,7 +4,6 @@ import { connectToDatabase } from "@/lib/db/connection";
 import Insight from "@/lib/db/models/Insight";
 import {
   InsightQuery,
-  buildMatchQuery,
   type AggregateResponse,
   type FiltersResponse,
   type InsightResponse,
@@ -33,6 +32,8 @@ interface CleanInsight {
 }
 
 let memoryData: CleanInsight[] | null = null;
+let lastDbFetchTime = 0;
+const CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes cache TTL
 
 function cleanNumeric(value: unknown): number | null {
   if (value === "" || value === null || value === undefined) return null;
@@ -41,9 +42,8 @@ function cleanNumeric(value: unknown): number | null {
 }
 
 export function loadRootJsonData(): CleanInsight[] {
-  if (memoryData) return memoryData;
+  if (memoryData && memoryData.length === 1000) return memoryData;
 
-  // Try root folder first as specified by user, then data/
   const rootPath = path.resolve(process.cwd(), "jsondata.json");
   const fallbackPath = path.resolve(process.cwd(), "data", "jsondata.json");
   const filePath = fs.existsSync(rootPath) ? rootPath : fallbackPath;
@@ -55,7 +55,7 @@ export function loadRootJsonData(): CleanInsight[] {
 
   try {
     const raw = JSON.parse(fs.readFileSync(filePath, "utf-8"));
-    memoryData = raw.map((item: Record<string, unknown>, idx: number) => ({
+    const cleaned = raw.map((item: Record<string, unknown>, idx: number) => ({
       _id: String(item._id || `insight-${idx}`),
       end_year: cleanNumeric(item.end_year),
       intensity: cleanNumeric(item.intensity),
@@ -75,19 +75,71 @@ export function loadRootJsonData(): CleanInsight[] {
       title: String(item.title || "").trim(),
       likelihood: cleanNumeric(item.likelihood),
     }));
-    console.log(`[dataService] Loaded ${memoryData?.length} records from ${filePath}`);
-    return memoryData || [];
+    return cleaned;
   } catch (err) {
     console.error("[dataService] Error loading JSON:", err);
     return [];
   }
 }
 
-function filterMemoryData(data: CleanInsight[], query: InsightQuery): CleanInsight[] {
+/**
+ * Fast dataset provider:
+ * Pulls directly from MongoDB Atlas and caches in server memory for 10 minutes.
+ * Allows instant sub-millisecond filtering across all dimensions.
+ */
+export async function getCleanDataset(): Promise<CleanInsight[]> {
+  if (memoryData && memoryData.length === 1000 && Date.now() - lastDbFetchTime < CACHE_TTL_MS) {
+    return memoryData;
+  }
+
+  // 1. Try loading from MongoDB Atlas first
+  if (process.env.MONGODB_URI) {
+    try {
+      await connectToDatabase();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const docs = await Insight.find().lean();
+      if (docs && docs.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        memoryData = docs.map((item: any, idx: number) => ({
+          _id: String(item._id || `insight-${idx}`),
+          end_year: cleanNumeric(item.end_year),
+          intensity: cleanNumeric(item.intensity),
+          sector: String(item.sector || "").trim(),
+          topic: String(item.topic || "").trim(),
+          insight: String(item.insight || "").trim(),
+          url: String(item.url || "").trim(),
+          region: String(item.region || "").trim(),
+          start_year: cleanNumeric(item.start_year),
+          impact: cleanNumeric(item.impact),
+          added: String(item.added || "").trim(),
+          published: String(item.published || "").trim(),
+          country: String(item.country || "").trim(),
+          relevance: cleanNumeric(item.relevance),
+          pestle: String(item.pestle || "").trim(),
+          source: String(item.source || "").trim(),
+          title: String(item.title || "").trim(),
+          likelihood: cleanNumeric(item.likelihood),
+        }));
+        lastDbFetchTime = Date.now();
+        console.log(`[dataService] Cached ${memoryData.length} records from MongoDB Atlas`);
+        return memoryData;
+      }
+    } catch (err) {
+      console.warn("[dataService] MongoDB Atlas load failed, falling back to bundled JSON:", err);
+    }
+  }
+
+  // 2. Fallback to local JSON
+  memoryData = loadRootJsonData();
+  lastDbFetchTime = Date.now();
+  return memoryData;
+}
+
+export function filterMemoryData(data: CleanInsight[], query: InsightQuery): CleanInsight[] {
   return data.filter((item) => {
     for (const field of FILTER_FIELDS) {
       const paramVal = query[field];
-      if (!paramVal || paramVal.trim() === "") continue;
+      if (!paramVal || typeof paramVal !== "string" || paramVal.trim() === "") continue;
 
       const filterValues = paramVal.split(",").map((v) => v.trim().toLowerCase());
       if (field === "end_year") {
@@ -117,190 +169,45 @@ function filterMemoryData(data: CleanInsight[], query: InsightQuery): CleanInsig
   });
 }
 
-export async function fetchInsights(query: InsightQuery): Promise<{ data: InsightResponse[]; count: number }> {
-  const limit = query.limit !== undefined ? query.limit : 1000;
+export async function fetchInsights(
+  query: InsightQuery
+): Promise<{ data: InsightResponse[]; count: number }> {
+  const limit = query.limit !== undefined ? query.limit : 100;
   const page = query.page !== undefined ? query.page : 1;
   const skip = (page - 1) * limit;
 
-  // If MongoDB URI is configured, try MongoDB
-  if (process.env.MONGODB_URI) {
-    try {
-      await connectToDatabase();
-      const match = buildMatchQuery(query);
-      const totalCount = await Insight.countDocuments(match);
-      const docs = await Insight.find(match).skip(skip).limit(limit).lean();
-      return { data: docs as unknown as InsightResponse[], count: totalCount };
-    } catch (err) {
-      console.warn("[dataService] MongoDB query failed, falling back to root jsondata.json:", err);
-    }
-  }
-
-  // Fallback to in-memory root jsondata.json
-  const all = loadRootJsonData();
+  const all = await getCleanDataset();
   const filtered = filterMemoryData(all, query);
   const totalCount = filtered.length;
   const paginated = filtered.slice(skip, skip + limit);
-  return { data: paginated, count: totalCount };
+  return { data: paginated as unknown as InsightResponse[], count: totalCount };
 }
 
 export async function fetchFiltersData(): Promise<FiltersResponse> {
-  if (process.env.MONGODB_URI) {
-    try {
-      await connectToDatabase();
-      const [topics, sectors, regions, pestles, sources, countries, endYears] =
-        await Promise.all([
-          Insight.distinct("topic").then((v) => v.filter((x: string) => x !== "").sort()),
-          Insight.distinct("sector").then((v) => v.filter((x: string) => x !== "").sort()),
-          Insight.distinct("region").then((v) => v.filter((x: string) => x !== "").sort()),
-          Insight.distinct("pestle").then((v) => v.filter((x: string) => x !== "").sort()),
-          Insight.distinct("source").then((v) => v.filter((x: string) => x !== "").sort()),
-          Insight.distinct("country").then((v) => v.filter((x: string) => x !== "").sort()),
-          Insight.distinct("end_year").then((v) =>
-            v.filter((x: number | null) => x !== null && x !== undefined).sort((a: number, b: number) => a - b)
-          ),
-        ]);
-
-      return { topics, sectors, regions, pestles, sources, countries, end_years: endYears };
-    } catch (err) {
-      console.warn("[dataService] MongoDB filters failed, falling back to root jsondata.json:", err);
-    }
-  }
-
-  const all = loadRootJsonData();
+  const all = await getCleanDataset();
   const topics = [...new Set(all.map((d) => d.topic).filter(Boolean))].sort();
   const sectors = [...new Set(all.map((d) => d.sector).filter(Boolean))].sort();
   const regions = [...new Set(all.map((d) => d.region).filter(Boolean))].sort();
   const pestles = [...new Set(all.map((d) => d.pestle).filter(Boolean))].sort();
   const sources = [...new Set(all.map((d) => d.source).filter(Boolean))].sort();
   const countries = [...new Set(all.map((d) => d.country).filter(Boolean))].sort();
-  const endYears = [...new Set(all.map((d) => d.end_year).filter((y): y is number => y !== null))].sort((a, b) => a - b);
+  const endYears = [
+    ...new Set(all.map((d) => d.end_year).filter((y): y is number => y !== null)),
+  ].sort((a, b) => a - b);
 
   return { topics, sectors, regions, pestles, sources, countries, end_years: endYears };
 }
 
 export async function fetchAggregateData(query: InsightQuery): Promise<AggregateResponse> {
-  if (process.env.MONGODB_URI) {
-    try {
-      await connectToDatabase();
-      const match = buildMatchQuery(query);
-      const baseMatch = Object.keys(match).length > 0 ? [{ $match: match }] : [];
-
-      const [totalCount, intensityByYear, topicCounts, regionYearIntensity, countryLikelihood, sectorCounts] =
-        await Promise.all([
-          Insight.countDocuments(match),
-          Insight.aggregate([
-            ...baseMatch,
-            { $match: { end_year: { $ne: null, $exists: true, $lte: 2060 }, intensity: { $ne: null, $exists: true } } },
-            {
-              $group: {
-                _id: "$end_year",
-                avgIntensity: { $avg: "$intensity" },
-                avgLikelihood: { $avg: "$likelihood" },
-                count: { $sum: 1 },
-              },
-            },
-            { $sort: { _id: 1 } },
-            {
-              $project: {
-                _id: 0,
-                year: "$_id",
-                avgIntensity: { $round: ["$avgIntensity", 2] },
-                avgLikelihood: { $round: [{ $ifNull: ["$avgLikelihood", 0] }, 2] },
-                count: 1,
-              },
-            },
-          ]),
-          Insight.aggregate([
-            ...baseMatch,
-            { $match: { topic: { $ne: "" } } },
-            { $group: { _id: "$topic", count: { $sum: 1 } } },
-            { $sort: { count: -1 } },
-            { $limit: 25 },
-            { $project: { _id: 0, topic: "$_id", count: 1 } },
-          ]),
-          Insight.aggregate([
-            ...baseMatch,
-            {
-              $match: {
-                region: { $ne: "" },
-                end_year: { $ne: null, $exists: true, $lte: 2060 },
-                intensity: { $ne: null, $exists: true },
-              },
-            },
-            {
-              $group: {
-                _id: { region: "$region", year: "$end_year" },
-                avgIntensity: { $avg: "$intensity" },
-                count: { $sum: 1 },
-              },
-            },
-            { $sort: { "_id.year": 1 } },
-            {
-              $project: {
-                _id: 0,
-                region: "$_id.region",
-                year: "$_id.year",
-                avgIntensity: { $round: ["$avgIntensity", 2] },
-                count: 1,
-              },
-            },
-          ]),
-          Insight.aggregate([
-            ...baseMatch,
-            {
-              $match: {
-                country: { $ne: "" },
-                likelihood: { $ne: null, $exists: true },
-              },
-            },
-            {
-              $group: {
-                _id: "$country",
-                avgLikelihood: { $avg: "$likelihood" },
-                count: { $sum: 1 },
-              },
-            },
-            { $sort: { avgLikelihood: -1 } },
-            { $limit: 20 },
-            {
-              $project: {
-                _id: 0,
-                country: "$_id",
-                avgLikelihood: { $round: ["$avgLikelihood", 2] },
-                count: 1,
-              },
-            },
-          ]),
-          Insight.aggregate([
-            ...baseMatch,
-            { $match: { sector: { $ne: "" } } },
-            { $group: { _id: "$sector", count: { $sum: 1 } } },
-            { $sort: { count: -1 } },
-            { $limit: 15 },
-            { $project: { _id: 0, sector: "$_id", count: 1 } },
-          ]),
-        ]);
-
-      return {
-        totalCount,
-        intensityByYear,
-        topicCounts,
-        regionYearIntensity,
-        countryLikelihood,
-        sectorCounts,
-      };
-    } catch (err) {
-      console.warn("[dataService] MongoDB aggregation failed, falling back to root jsondata.json:", err);
-    }
-  }
-
-  // Fallback to in-memory root jsondata.json
-  const all = loadRootJsonData();
+  const all = await getCleanDataset();
   const filtered = filterMemoryData(all, query);
   const totalCount = filtered.length;
 
   // 1. Intensity by year
-  const yearMap = new Map<number, { sumInt: number; sumLike: number; countLike: number; count: number }>();
+  const yearMap = new Map<
+    number,
+    { sumInt: number; sumLike: number; countLike: number; count: number }
+  >();
   filtered.forEach((d) => {
     if (d.end_year !== null && d.end_year <= 2060 && d.intensity !== null) {
       const cur = yearMap.get(d.end_year) || { sumInt: 0, sumLike: 0, countLike: 0, count: 0 };
@@ -335,7 +242,10 @@ export async function fetchAggregateData(query: InsightQuery): Promise<Aggregate
     .map(([topic, count]) => ({ topic, count }));
 
   // 3. Region x Year Intensity
-  const ryMap = new Map<string, { region: string; year: number; sumInt: number; count: number }>();
+  const ryMap = new Map<
+    string,
+    { region: string; year: number; sumInt: number; count: number }
+  >();
   filtered.forEach((d) => {
     if (d.region && d.end_year !== null && d.end_year <= 2060 && d.intensity !== null) {
       const key = `${d.region}-${d.end_year}`;
